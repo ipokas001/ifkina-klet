@@ -1,0 +1,58 @@
+IFKINA KLET - Android aplikacija (bez računala)
+================================================
+
+Kako radi: mobiteli (ocjenjivači i admin) i Android TV spajaju se preko interneta
+na besplatnu bazu u oblaku (Firebase). Računalo NIJE potrebno za rad.
+Računalo (ili jednom prijatelj s računalom) treba samo jednom da se napravi APK.
+
+DIO 1 - BAZA (jednom, 5 minuta, besplatno)
+------------------------------------------
+1. Idite na https://console.firebase.google.com i prijavite se Google računom.
+2. "Create a project" -> ime npr. ifkina-klet -> isključite Google Analytics -> Create.
+3. Lijevi izbornik: Build -> Realtime Database -> "Create Database".
+   Lokacija: Belgium (europe-west1) ili bilo koja. Odaberite "Start in test mode" -> Enable.
+4. Na vrhu baze vidjet ćete adresu, npr.
+   https://ifkina-klet-default-rtdb.europe-west1.firebasedatabase.app
+   Kopirajte je.
+5. Kartica "Rules": zamijenite sadržaj s:
+   { "rules": { ".read": true, ".write": true } }
+   i kliknite Publish. (Test mode inače istječe nakon 30 dana. Ova pravila vrijede stalno.
+   Svatko tko zna adresu baze može pisati u nju - adresu ne dijelite javno.)
+
+DIO 2 - APK BEZ INSTALACIJE ANDROID STUDIJA (preko GitHuba, besplatno)
+----------------------------------------------------------------------
+1. Napravite besplatni račun na https://github.com
+2. New repository -> ime ifkina-klet -> Create.
+3. Prije uploada otvorite datoteku app/src/main/assets/config.js u Bilježnici i upišite adresu baze:
+   window.DB_URL = "https://ifkina-klet-default-rtdb.europe-west1.firebasedatabase.app";
+   (Tada aplikacija neće tražiti adresu pri pokretanju - dobro za TV, gdje je tipkanje teško.)
+4. Na stranici repozitorija: "uploading an existing file" -> povucite SVE iz mape Ifkina_klet
+   (uključujući mapu .github - ako je skrivena, uključite prikaz skrivenih datoteka)
+   -> Commit changes.
+5. Kartica "Actions" -> radni tok "Build APK" -> pričekajte ~3-5 min da dobije zelenu kvačicu.
+6. Kliknite na taj zadatak -> dolje "Artifacts" -> "Ifkina-klet-apk" -> preuzmite ZIP,
+   unutra je app-debug.apk.
+
+Alternativa: Android Studio -> File > Open (ova mapa) -> Build > Build APK(s).
+
+DIO 3 - INSTALACIJA
+-------------------
+Mobitel: pošaljite APK (Viber, mail, Google Drive), otvorite ga, dopustite
+"Instalacija iz nepoznatih izvora". Aplikacija se zove "Ifkina klet".
+Android TV: stavite APK na USB ili Google Drive, instalirajte aplikacijom
+"Send Files to TV" ili "File Commander". Na TV-u se aplikacija sama otvara
+u prikazu rezultata uživo.
+
+KORIŠTENJE
+----------
+ADMIN: na mobitelu Admin -> prvi put upišete PIN koji sami smislite (to postaje vaš PIN).
+  Dodaj uzorke: 1-12  ili  3,7,15  ili  A1,A2 (brojevi koje ste napisali na bocama).
+  Može se zatvoriti/otvoriti ocjenjivanje, obrisati uzorak, sakriti rezultate na TV-u,
+  izvesti CSV (otvara se dijeljenje: pošaljite sebi na mail i otvorite u Excelu).
+OCJENJIVAČI: upišu ime -> Ocjenjivanje -> dodirnu broj s boce -> klizači
+  Boja (0-20), Miris (0-30), Okus (0-50) = 100 bodova -> Pošalji ocjenu.
+  Svoju ocjenu mogu ispraviti ponovnim slanjem.
+TV: prikazuje poredak uzoraka po prosjeku, s prosjekom za boju, miris i okus;
+  osvježava se svake 2 sekunde.
+
+Raspodjela bodova mijenja se u app/src/main/assets/index.html, redak "const CRIT".

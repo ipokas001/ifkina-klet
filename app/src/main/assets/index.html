@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="hr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Ifkina klet</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:system-ui,Roboto,Arial,sans-serif;background:#f6f1ec;color:#2b1d22}
+header{background:#6d1a36;color:#fff;padding:14px 16px;position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center}
+header h1{margin:0;font-size:20px}header small{opacity:.8;display:block}
+.wrap{max-width:640px;margin:0 auto;padding:12px 12px 90px}
+input,select,textarea{width:100%;padding:12px;border:1px solid #d6c9c2;border-radius:10px;font-size:16px;background:#fff;font-family:inherit}
+label{display:block;font-size:13px;font-weight:600;margin:12px 0 4px;color:#5a3a45}
+.btn{border:0;border-radius:12px;padding:14px 16px;font-size:17px;font-weight:600;background:#6d1a36;color:#fff;width:100%;margin-top:10px}
+.btn.sec{background:#e8dcd6;color:#4a2a35}.btn.red{background:#b3261e}.btn.sm{width:auto;padding:8px 12px;font-size:14px;margin:0}
+.btn:focus,.tile:focus{outline:4px solid #f0b429}
+.hidden{display:none!important}
+.card{background:#fff;border-radius:14px;padding:14px;margin:10px 0;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:10px;margin-top:10px}
+.tile{background:#fff;border:2px solid #d6c9c2;border-radius:14px;padding:16px 4px;font-size:26px;font-weight:800;text-align:center;color:#6d1a36}
+.tile.done{background:#6d1a36;color:#fff;border-color:#6d1a36}
+.tile.closed{opacity:.4}
+.tile small{display:block;font-size:11px;font-weight:600}
+.slider{background:#fff;border-radius:12px;padding:12px 14px;margin-top:10px;border:1px solid #eadfd9}
+.slider .top{display:flex;justify-content:space-between;font-weight:700;font-size:16px}
+.slider input[type=range]{padding:0;border:0;accent-color:#6d1a36;margin-top:10px;height:32px}
+.total{text-align:center;background:#6d1a36;color:#fff;border-radius:14px;padding:14px;margin-top:14px}
+.total b{font-size:46px;display:block}
+.row{display:flex;gap:8px;align-items:center}.row>*{flex:1}
+.msg{padding:10px;border-radius:10px;background:#efe3e7;margin:10px 0;font-size:14px}
+.srow{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid #eee}
+.srow:last-child{border:0}
+.badge{display:inline-block;font-size:12px;padding:2px 8px;border-radius:20px;background:#efe3e7;color:#6d1a36}
+/* TV */
+body.tv{background:#2a0f1a;color:#fff;padding:0;overflow:hidden}
+#tv{padding:2.2vh 3vw}
+#tv h1{font-size:5vh;margin:0}#tv .sub{font-size:2.6vh;opacity:.75;margin-bottom:1.5vh}
+.trow{display:grid;grid-template-columns:7vw 1fr 11vw;gap:1.5vw;align-items:center;background:#431a2b;border-radius:1.5vh;padding:1.2vh 1.5vw;margin-bottom:1.1vh}
+.trow.top1{background:#8a2347;border:.4vh solid #f0b429}
+.trow .no{font-size:6vh;font-weight:900;text-align:center;line-height:1}
+.trow .no small{display:block;font-size:1.8vh;font-weight:500;opacity:.7}
+.trow .tot{font-size:6vh;font-weight:900;text-align:right}
+.trow .tot small{display:block;font-size:1.8vh;opacity:.7;font-weight:500}
+.bars{display:grid;grid-template-columns:repeat(3,1fr);gap:1vw}
+.bars div{font-size:1.9vh;opacity:.9}
+.tb{height:1.2vh;background:#2a0f1a;border-radius:1vh;overflow:hidden;margin-top:.4vh}.tb i{display:block;height:100%;background:#f0b429}
+.big{text-align:center;font-size:5vh;margin-top:25vh;opacity:.85}
+</style></head><body>
+<div id="app"></div>
+<script src="config.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const key=s=>String(s).trim().replace(/[.$#\[\]\/]/g,'_').slice(0,60);
+const CRIT=[{k:'boja',n:'Boja',max:20},{k:'miris',n:'Miris',max:30},{k:'okus',n:'Okus',max:50}];
+const isTV=new URLSearchParams(location.search).get('tv')==='1';
+let DB=(window.DB_URL||localStorage.getItem('db_url')||'').replace(/\/+$/,'');
+let data={samples:{},ratings:{},settings:{}};
+let screen='home',cur=null,timer=null,adminOk=false,online=true;
+if(isTV)document.body.classList.add('tv');
+
+async function api(path,method,body){
+  const r=await fetch(DB+path+'.json',{method:method||'GET',body:body===undefined?undefined:JSON.stringify(body)});
+  if(!r.ok)throw new Error(r.status);return r.json();
+}
+async function pull(){
+  try{
+    const d=await api('/','GET');
+    data={samples:(d&&d.samples)||{},ratings:(d&&d.ratings)||{},settings:(d&&d.settings)||{}};
+    online=true;
+  }catch(e){online=false}
+}
+function startPoll(){clearInterval(timer);timer=setInterval(async()=>{
+  await pull();
+  if(screen==='tv')renderTV();
+  else if(screen==='pick')renderPick(true);
+  else if(screen==='admin')renderAdmin(true);
+  else if(screen==='results')renderResults(true);
+},2000)}
+
+function stats(id){
+  const r=Object.values(data.ratings[id]||{});const n=r.length;
+  const avg=k=>n?r.reduce((a,x)=>a+(+x[k]||0),0)/n:0;
+  return {n,boja:avg('boja'),miris:avg('miris'),okus:avg('okus'),total:avg('total')};
+}
+function sortedSamples(){
+  return Object.keys(data.samples).map(id=>({id,...stats(id)}))
+    .sort((a,b)=>b.total-a.total||a.id.localeCompare(b.id,'hr',{numeric:true}));
+}
+function idsSorted(){return Object.keys(data.samples).sort((a,b)=>a.localeCompare(b,'hr',{numeric:true}))}
+function goBack(){
+  if(isTV)return false;
+  if(screen==='home')return false;
+  if(screen==='rate'){showPick();return true}
+  if(screen==='results'||screen==='pick'||screen==='adminLogin'||screen==='admin'||screen==='setup'){home();return true}
+  return false;
+}
+
+/* ---------- start ---------- */
+async function boot(){
+  if(!DB){setup();return}
+  if(isTV){screen='tv';await pull();renderTV();startPoll();return}
+  home();
+}
+function setup(msg){
+  screen='setup';
+  $('#app').innerHTML=`<header><h1>🍷 Ifkina klet</h1></header><div class="wrap">
+  <div class="card"><b>Prvo pokretanje</b><p>Zalijepite adresu Firebase baze (vidi UPUTE). Isti podatak upišite na svim uređajima.</p>
+  ${msg?`<div class="msg">${esc(msg)}</div>`:''}
+  <input id="dburl" value="${esc(DB)}" placeholder="https://ime-projekta-default-rtdb.europe-west1.firebasedatabase.app" autocapitalize="off" autocorrect="off">
+  <button class="btn" onclick="saveUrl()">Spremi i spoji</button></div></div>`;
+}
+async function saveUrl(){
+  let u=$('#dburl').value.trim().replace(/\/+$/,'');
+  if(!/^https:\/\/.+/.test(u)){setup('Adresa mora početi s https://');return}
+  DB=u;
+  try{await api('/settings','GET');}catch(e){DB='';setup('Ne mogu se spojiti. Provjerite adresu i internet.');return}
+  localStorage.setItem('db_url',u);boot();
+}
+function home(){
+  screen='home';clearInterval(timer);
+  $('#app').innerHTML=`<header><div><h1>🍷 Ifkina klet</h1><small>Ocjenjivanje vina</small></div></header>
+  <div class="wrap">
+   <div class="card"><label>Vaše ime</label><input id="who" value="${esc(localStorage.getItem('who')||'')}" placeholder="npr. Ivo">
+   <button class="btn" onclick="goRate()">Ocjenjivanje</button></div>
+   <button class="btn sec" onclick="showResults()">Rezultati</button>
+   <button class="btn sec" onclick="toTV()">Prikaz za TV</button>
+   <button class="btn sec" onclick="adminLogin()">Admin</button>
+   <button class="btn sec" style="font-size:13px;padding:8px" onclick="setup()">Promijeni adresu baze</button>
+  </div>`;
+}
+function toTV(){screen='tv';document.body.classList.add('tv');pull().then(()=>{renderTV();startPoll()})}
+function goRate(){
+  const n=$('#who').value.trim();
+  if(!n){alert('Upišite svoje ime.');return}
+  localStorage.setItem('who',n);showPick();
+}
+async function showPick(){screen='pick';await pull();renderPick();startPoll()}
+function renderPick(soft){
+  if(soft&&document.activeElement&&document.activeElement.tagName==='INPUT')return;
+  const who=key(localStorage.getItem('who')||'');
+  const ids=idsSorted();
+  $('#app').innerHTML=`<header><div><h1>🍷 Odaberite uzorak</h1><small>${esc(localStorage.getItem('who'))}</small></div><button class="btn sm sec" onclick="home()">Natrag</button></header>
+  <div class="wrap">${online?'':'<div class="msg">Nema veze s internetom…</div>'}
+  ${ids.length?`<p>Dodirnite broj s boce. Ljubičasto = već ste ocijenili.</p><div class="grid">`+ids.map(id=>{
+    const done=data.ratings[id]&&data.ratings[id][who];const open=data.samples[id]&&data.samples[id].open!==false;
+    return `<button class="tile ${done?'done':''} ${open?'':'closed'}" onclick="rate('${esc(id)}')">${esc(id)}<small>${!open?'zatvoreno':done?done.total+' b':''}</small></button>`}).join('')+`</div>`
+   :'<div class="msg">Admin još nije dodao uzorke.</div>'}
+  </div>`;
+}
+function rate(id){
+  const open=data.samples[id]&&data.samples[id].open!==false;
+  if(!open){alert('Ocjenjivanje ovog uzorka je zatvoreno.');return}
+  cur=id;screen='rate';clearInterval(timer);
+  const who=key(localStorage.getItem('who'));
+  const old=(data.ratings[id]||{})[who];
+  $('#app').innerHTML=`<header><div><h1>Uzorak ${esc(id)}</h1><small>${esc(localStorage.getItem('who'))}</small></div><button class="btn sm sec" onclick="showPick()">Natrag</button></header>
+  <div class="wrap">`+CRIT.map(c=>`<div class="slider"><div class="top"><span>${c.n}</span><span><span id="v_${c.k}">0</span> / ${c.max}</span></div>
+   <input type="range" id="s_${c.k}" min="0" max="${c.max}" step="1" value="${old?old[c.k]:Math.round(c.max*0.6)}"></div>`).join('')+`
+   <div class="total"><span>Ukupno bodova</span><b id="tot">0</b></div>
+   <button class="btn" onclick="sendRating()">${old?'Ispravi ocjenu':'Pošalji ocjenu'}</button></div>`;
+  CRIT.forEach(c=>$('#s_'+c.k).addEventListener('input',upd));upd();
+}
+function upd(){let t=0;CRIT.forEach(c=>{const v=+$('#s_'+c.k).value;$('#v_'+c.k).textContent=v;t+=v});$('#tot').textContent=t}
+async function sendRating(){
+  const name=localStorage.getItem('who');const o={name,t:Date.now()};let tot=0;
+  CRIT.forEach(c=>{const v=Math.max(0,Math.min(c.max,+$('#s_'+c.k).value||0));o[c.k]=v;tot+=v});o.total=tot;
+  try{await api('/ratings/'+encodeURIComponent(cur)+'/'+encodeURIComponent(key(name)),'PUT',o)}
+  catch(e){alert('Ocjena nije poslana. Provjerite internet i pokušajte opet.');return}
+  alert('Ocjena poslana ✔');showPick();
+}
+async function showResults(){screen='results';await pull();renderResults();startPoll()}
+function renderResults(soft){
+  if(data.settings.hide){$('#app').innerHTML=`<header><h1>Rezultati</h1><button class="btn sm sec" onclick="home()">Natrag</button></header><div class="wrap"><div class="msg">Rezultati su skriveni do kraja ocjenjivanja.</div></div>`;return}
+  const l=sortedSamples();
+  $('#app').innerHTML=`<header><h1>Rezultati</h1><button class="btn sm sec" onclick="home()">Natrag</button></header><div class="wrap">`+
+   (l.length?l.map((s,i)=>`<div class="card"><div class="srow"><b>${i+1}. Uzorak ${esc(s.id)}</b><b style="font-size:22px;color:#6d1a36">${s.total.toFixed(1)}</b></div>
+   <small>Boja ${s.boja.toFixed(1)} · Miris ${s.miris.toFixed(1)} · Okus ${s.okus.toFixed(1)} · ocjena: ${s.n}</small></div>`).join(''):'<div class="msg">Nema uzoraka.</div>')+`</div>`;
+}
+/* ---------- TV ---------- */
+function renderTV(){
+  const s=data.settings||{};
+  if(s.hide){$('#app').innerHTML=`<div id="tv"><h1>🍷 Ifkina klet</h1><div class="big">Rezultati će biti objavljeni na kraju ocjenjivanja</div></div>`;return}
+  const l=sortedSamples();const total=l.reduce((a,x)=>a+x.n,0);
+  const rows=l.slice(0,8);
+  $('#app').innerHTML=`<div id="tv"><h1>🍷 Ifkina klet <span style="font-size:3vh;opacity:.7">— rezultati uživo</span></h1>
+  <div class="sub">${l.length} uzoraka · ${total} ocjena ${online?'':' · ⚠ nema veze'}</div>`+
+  (rows.length?rows.map((x,i)=>`<div class="trow ${i===0&&x.n?'top1':''}"><div class="no">${esc(x.id)}<small>#${i+1}</small></div>
+   <div class="bars">${CRIT.map(c=>`<div>${c.n} ${x[c.k].toFixed(1)}<div class="tb"><i style="width:${x[c.k]/c.max*100}%"></i></div></div>`).join('')}</div>
+   <div class="tot">${x.total.toFixed(1)}<small>${x.n} ocjena</small></div></div>`).join(''):'<div class="big">Čekam uzorke…</div>')+
+  (l.length>8?`<div class="sub">+ još ${l.length-8} uzoraka</div>`:'')+`</div>`;
+}
+/* ---------- ADMIN ---------- */
+function adminLogin(){
+  screen='adminLogin';
+  $('#app').innerHTML=`<header><h1>Admin</h1><button class="btn sm sec" onclick="home()">Natrag</button></header><div class="wrap"><div class="card">
+  <label>PIN</label><input id="pin" type="password" inputmode="numeric" placeholder="PIN">
+  <small>Ako PIN još nije postavljen, ono što upišete postaje vaš PIN.</small>
+  <button class="btn" onclick="doLogin()">Prijava</button></div></div>`;
+}
+async function doLogin(){
+  const p=$('#pin').value.trim();if(p.length<3){alert('PIN mora imati bar 3 znaka.');return}
+  await pull();
+  if(!online){alert('Nema veze s bazom.');return}
+  if(!data.settings.pin){await api('/settings/pin','PUT',p);data.settings.pin=p}
+  if(String(data.settings.pin)!==p){alert('Pogrešan PIN.');return}
+  adminOk=true;showAdmin();
+}
+async function showAdmin(){screen='admin';await pull();renderAdmin();startPoll()}
+function renderAdmin(soft){
+  if(soft&&document.activeElement&&['INPUT','TEXTAREA'].includes(document.activeElement.tagName))return;
+  const ids=idsSorted();
+  $('#app').innerHTML=`<header><div><h1>Admin</h1><small>${ids.length} uzoraka</small></div><button class="btn sm sec" onclick="home()">Izlaz</button></header><div class="wrap">
+  <div class="card"><b>Dodaj uzorke (brojevi s boca)</b>
+   <input id="newids" placeholder="1-12  ili  3,7,15  ili  A1,A2" style="margin-top:8px">
+   <button class="btn" onclick="addSamples()">Dodaj</button></div>
+  <div class="card"><b>Uzorci</b>
+  ${ids.length?ids.map(id=>{const st=stats(id);const open=data.samples[id].open!==false;return `<div class="srow"><div><b style="font-size:20px">${esc(id)}</b> <span class="badge">${st.n} ocjena</span> <span class="badge">${st.total.toFixed(1)}</span></div>
+   <div style="display:flex;gap:6px"><button class="btn sm ${open?'':'sec'}" onclick="toggle('${esc(id)}')">${open?'Otvoreno':'Zatvoreno'}</button><button class="btn sm red" onclick="delSample('${esc(id)}')">✕</button></div></div>`}).join(''):'<p>Nema uzoraka.</p>'}
+  </div>
+  <button class="btn" onclick="setAll(false)">Zatvori ocjenjivanje svih</button>
+  <button class="btn sec" onclick="setAll(true)">Otvori ocjenjivanje svih</button>
+  <button class="btn sec" onclick="toggleHide()">${data.settings.hide?'Prikaži rezultate na TV-u':'Sakrij rezultate na TV-u'}</button>
+  <button class="btn sec" onclick="exportCSV()">Izvezi CSV (Excel)</button>
+  <button class="btn sec" onclick="changePin()">Promijeni PIN</button>
+  <button class="btn red" onclick="resetAll()">Obriši sve ocjene i uzorke</button></div>`;
+}
+function parseIds(t){
+  const out=[];
+  t.split(',').map(x=>x.trim()).filter(Boolean).forEach(p=>{
+    const m=p.match(/^(\d+)\s*-\s*(\d+)$/);
+    if(m){let a=+m[1],b=+m[2];if(b-a>300)b=a+300;for(let i=a;i<=b;i++)out.push(String(i))}
+    else out.push(key(p));
+  });return out;
+}
+async function addSamples(){
+  const ids=parseIds($('#newids').value);if(!ids.length)return;
+  const o={};ids.forEach(id=>{if(!data.samples[id])o[id]={open:true}});
+  try{await api('/samples','PATCH',o)}catch(e){alert('Greška pri spremanju.');return}
+  showAdmin();
+}
+async function toggle(id){const open=data.samples[id].open!==false;await api('/samples/'+encodeURIComponent(id)+'/open','PUT',!open);showAdmin()}
+async function setAll(v){const o={};Object.keys(data.samples).forEach(id=>o[id]={open:v});await api('/samples','PATCH',o);showAdmin()}
+async function delSample(id){if(!confirm('Obrisati uzorak '+id+' i njegove ocjene?'))return;
+  await api('/samples/'+encodeURIComponent(id),'DELETE');await api('/ratings/'+encodeURIComponent(id),'DELETE');showAdmin()}
+async function toggleHide(){await api('/settings/hide','PUT',!data.settings.hide);showAdmin()}
+async function changePin(){const p=prompt('Novi PIN:');if(p&&p.trim().length>=3){await api('/settings/pin','PUT',p.trim());alert('PIN promijenjen.')}}
+async function resetAll(){if(!confirm('Obrisati SVE uzorke i ocjene?'))return;if(!confirm('Sigurno? Ovo se ne može poništiti.'))return;
+  await api('/samples','DELETE');await api('/ratings','DELETE');showAdmin()}
+function exportCSV(){
+  const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const rows=[['Uzorak','Ocjenjivač','Boja','Miris','Okus','Ukupno']];
+  idsSorted().forEach(id=>Object.values(data.ratings[id]||{}).forEach(r=>rows.push([id,r.name,r.boja,r.miris,r.okus,r.total])));
+  rows.push([]);rows.push(['Uzorak','Prosjek boja','Prosjek miris','Prosjek okus','Prosjek ukupno','Broj ocjena']);
+  sortedSamples().forEach(s=>rows.push([s.id,s.boja.toFixed(2),s.miris.toFixed(2),s.okus.toFixed(2),s.total.toFixed(2),s.n]));
+  const csv='\ufeff'+rows.map(r=>r.map(q).join(';')).join('\r\n');
+  if(window.Android&&Android.share){Android.share('Ifkina klet - rezultati.csv',csv);return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='ifkina-klet.csv';document.body.appendChild(a);a.click();a.remove();
+}
+boot();
+</script></body></html>
