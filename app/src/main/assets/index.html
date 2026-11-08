@@ -249,7 +249,8 @@ async function setAll(v){const o={};Object.keys(data.samples).forEach(id=>o[id]=
 async function delSample(id){
   if(!confirm('Obrisati uzorak '+id+' i njegove ocjene?'))return;
   try{
-    await api('','PATCH',{['samples/'+id]:null,['ratings/'+id]:null});
+    await api('/ratings/'+encodeURIComponent(id),'DELETE');
+    await api('/samples/'+encodeURIComponent(id),'DELETE');
   }catch(e){
     alert('Uzorak nije obrisan. Provjerite internet i Firebase pravila. '+e.message);
     return;
