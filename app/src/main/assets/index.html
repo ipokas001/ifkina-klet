@@ -254,8 +254,7 @@ function exportCSV(){
   sortedSamples().forEach(s=>rows.push([s.id,s.boja.toFixed(2),s.miris.toFixed(2),s.okus.toFixed(2),s.total.toFixed(2),s.n]));
   const csv='\ufeff'+rows.map(r=>r.map(q).join(';')).join('\r\n');
   if(window.Android&&Android.share){Android.share('Ifkina klet - rezultati.csv',csv);return}
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],alert("Pokušavam obrisati uzorak s ID-jem: " + idUzorka);
-{type:'text/csv'}));a.download='ifkina-klet.csv';document.body.appendChild(a);a.click();a.remove();
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='ifkina-klet.csv';document.body.appendChild(a);a.click();a.remove();
 }
 boot();
 </script></body></html>
