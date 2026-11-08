@@ -60,7 +60,7 @@ if(isTV)document.body.classList.add('tv');
 
 async function api(path,method,body){
   const r=await fetch(DB+path+'.json',{method:method||'GET',body:body===undefined?undefined:JSON.stringify(body)});
-  if(!r.ok)throw new Error(r.status);return r.json();
+  if(!r.ok)throw new Error((await r.text())||`HTTP ${r.status}`);return r.json();
 }
 async function pull(){
   try{
@@ -97,6 +97,12 @@ function goBack(){
 
 /* ---------- start ---------- */
 async function boot(){
+  $('#app').addEventListener('click',e=>{
+    const target=e.target;
+    if(!(target instanceof Element))return;
+    const button=target.closest('[data-delete-sample]');
+    if(button)delSample(button.dataset.deleteSample);
+  });
   if(!DB){setup();return}
   if(isTV){screen='tv';await pull();renderTV();startPoll();return}
   home();
@@ -215,7 +221,7 @@ function renderAdmin(soft){
    <button class="btn" onclick="addSamples()">Dodaj</button></div>
   <div class="card"><b>Uzorci</b>
   ${ids.length?ids.map(id=>{const st=stats(id);const open=data.samples[id].open!==false;return `<div class="srow"><div><b style="font-size:20px">${esc(id)}</b> <span class="badge">${st.n} ocjena</span> <span class="badge">${st.total.toFixed(1)}</span></div>
-   <div style="display:flex;gap:6px"><button class="btn sm ${open?'':'sec'}" onclick="toggle('${esc(id)}')">${open?'Otvoreno':'Zatvoreno'}</button><button class="btn sm red" onclick="delSample('${esc(id)}')">✕</button></div></div>`}).join(''):'<p>Nema uzoraka.</p>'}
+   <div style="display:flex;gap:6px"><button class="btn sm ${open?'':'sec'}" onclick="toggle('${esc(id)}')">${open?'Otvoreno':'Zatvoreno'}</button><button class="btn sm red" type="button" data-delete-sample="${esc(id)}" aria-label="Obriši uzorak ${esc(id)}">✕</button></div></div>`}).join(''):'<p>Nema uzoraka.</p>'}
   </div>
   <button class="btn" onclick="setAll(false)">Zatvori ocjenjivanje svih</button>
   <button class="btn sec" onclick="setAll(true)">Otvori ocjenjivanje svih</button>
@@ -240,8 +246,16 @@ async function addSamples(){
 }
 async function toggle(id){const open=data.samples[id].open!==false;await api('/samples/'+encodeURIComponent(id)+'/open','PUT',!open);showAdmin()}
 async function setAll(v){const o={};Object.keys(data.samples).forEach(id=>o[id]={open:v});await api('/samples','PATCH',o);showAdmin()}
-async function delSample(id){if(!confirm('Obrisati uzorak '+id+' i njegove ocjene?'))return;
-  await api('/samples/'+encodeURIComponent(id),'DELETE');await api('/ratings/'+encodeURIComponent(id),'DELETE');showAdmin()}
+async function delSample(id){
+  if(!confirm('Obrisati uzorak '+id+' i njegove ocjene?'))return;
+  try{
+    await api('','PATCH',{['samples/'+id]:null,['ratings/'+id]:null});
+  }catch(e){
+    alert('Uzorak nije obrisan. Provjerite internet i Firebase pravila. '+e.message);
+    return;
+  }
+  showAdmin();
+}
 async function toggleHide(){await api('/settings/hide','PUT',!data.settings.hide);showAdmin()}
 async function changePin(){const p=prompt('Novi PIN:');if(p&&p.trim().length>=3){await api('/settings/pin','PUT',p.trim());alert('PIN promijenjen.')}}
 async function resetAll(){if(!confirm('Obrisati SVE uzorke i ocjene?'))return;if(!confirm('Sigurno? Ovo se ne može poništiti.'))return;
