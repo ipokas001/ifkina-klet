@@ -243,7 +243,8 @@ function renderAdmin(soft){
   $('#app').innerHTML=`<header><div><h1>Admin</h1><small>${ids.length} uzoraka</small></div><button class="btn sm sec" onclick="home()">Izlaz</button></header><div class="wrap">
   <div class="card"><b>Dodaj uzorke (brojevi s boca)</b>
    <input id="newids" placeholder="1-12  ili  3,7,15  ili  A1,A2" style="margin-top:8px">
-   <button class="btn" onclick="addSamples()">Dodaj</button></div>
+   <button class="btn" id="add-samples" onclick="addSamples()">Dodaj</button>
+   <div id="sample-message" class="msg hidden" role="status" aria-live="polite"></div></div>
   <div class="card"><b>Uzorci</b>
   ${ids.length?ids.map(id=>{const st=stats(id);const open=(data.samples[id]||{}).open!==false;return `<div class="srow"><div><b style="font-size:20px">${esc(id)}</b> <span class="badge">${st.n} ocjena</span> <span class="badge">${st.total.toFixed(1)}</span></div>
    <div style="display:flex;gap:6px"><button class="btn sm ${open?'':'sec'}" onclick="toggle('${esc(id)}')">${open?'Otvoreno':'Zatvoreno'}</button><button class="btn sm red" type="button" data-delete-sample="${esc(id)}" aria-label="Obriši uzorak ${esc(id)}">✕</button></div></div>`}).join(''):'<p>Nema uzoraka.</p>'}
@@ -257,17 +258,41 @@ function renderAdmin(soft){
 }
 function parseIds(t){
   const out=[];
-  t.split(',').map(x=>x.trim()).filter(Boolean).forEach(p=>{
+  t.split(/[,\s;]+/).map(x=>x.trim()).filter(Boolean).forEach(p=>{
     const m=p.match(/^(\d+)\s*-\s*(\d+)$/);
     if(m){let a=+m[1],b=+m[2];if(b-a>300)b=a+300;for(let i=a;i<=b;i++)out.push(String(i))}
     else out.push(key(p));
   });return out;
 }
+function showSampleMessage(message,isError){
+  const el=$('#sample-message');if(!el)return;
+  el.textContent=message;
+  el.classList.remove('hidden');
+  el.style.background=isError?'#fce8e6':'#e6f4ea';
+  el.style.color=isError?'#b3261e':'#137333';
+}
 async function addSamples(){
-  const ids=parseIds($('#newids').value);if(!ids.length)return;
-  const o={};ids.forEach(id=>{if(!data.samples[id])o[id]={open:true}});
-  try{await api('/samples','PATCH',o)}catch(e){alert(writeError(e));return}
-  showAdmin();
+  const input=$('#newids'),button=$('#add-samples');
+  const ids=[...new Set(parseIds(input.value))];
+  if(!ids.length){showSampleMessage('Upišite brojeve uzoraka, npr. 1-12 ili 3, 7, 15.',true);input.focus();return}
+  const toAdd=ids.filter(id=>!data.samples[id]);
+  if(!toAdd.length){showSampleMessage('Ti uzorci već postoje.',true);return}
+  const originalLabel=button.textContent;
+  button.disabled=true;button.textContent='Spremam…';
+  try{
+    const samples={};toAdd.forEach(id=>{samples[id]={open:true}});
+    await api('/samples','PATCH',samples);
+    await showAdmin();
+    if(!online)throw new Error('Zapis je poslan, ali nije moguće provjeriti bazu.');
+    const missing=toAdd.filter(id=>!data.samples[id]);
+    if(missing.length)throw new Error('Baza nije potvrdila uzorke: '+missing.join(', '));
+    showSampleMessage('Dodano uzoraka: '+toAdd.join(', '),false);
+  }catch(e){
+    showSampleMessage(writeError(e),true);
+  }finally{
+    const currentButton=$('#add-samples');
+    if(currentButton){currentButton.disabled=false;currentButton.textContent=originalLabel}
+  }
 }
 async function toggle(id){const open=data.samples[id].open!==false;await api('/samples/'+encodeURIComponent(id)+'/open','PUT',!open);showAdmin()}
 async function setAll(v){const o={};Object.keys(data.samples).forEach(id=>o[id]={open:v});await api('/samples','PATCH',o);showAdmin()}
