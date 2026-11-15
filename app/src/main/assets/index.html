@@ -213,11 +213,15 @@ function adminLogin(){
 }
 async function doLogin(){
   const p=$('#pin').value.trim();if(p.length<3){alert('PIN mora imati bar 3 znaka.');return}
-  await pull();
-  if(!online){alert('Nema veze s bazom.');return}
-  if(!data.settings.pin){await api('/settings/pin','PUT',p);data.settings.pin=p}
-  if(String(data.settings.pin)!==p){alert('Pogrešan PIN.');return}
-  adminOk=true;showAdmin();
+  try{
+    await pull();
+    if(!online){alert('Nema veze s bazom. Provjerite internet i Firebase adresu.');return}
+    if(!data.settings.pin){await api('/settings/pin','PUT',p);data.settings.pin=p}
+    if(String(data.settings.pin)!==p){alert('Pogrešan PIN.');return}
+    adminOk=true;await showAdmin();
+  }catch(e){
+    alert('Prijava nije uspjela. '+writeError(e));
+  }
 }
 async function showAdmin(){screen='admin';await pull();renderAdmin();startPoll()}
 function renderAdmin(soft){
