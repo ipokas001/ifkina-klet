@@ -62,6 +62,14 @@ async function api(path,method,body){
   const r=await fetch(DB+path+'.json',{method:method||'GET',body:body===undefined?undefined:JSON.stringify(body)});
   if(!r.ok)throw new Error((await r.text())||`HTTP ${r.status}`);return r.json();
 }
+function writeError(e){
+  let message=e&&e.message?e.message:String(e);
+  const responseError=message.match(/"error"\s*:\s*"([^"]+)"/);
+  if(responseError)message=responseError[1];
+  if(/permission denied/i.test(message))
+    return 'Firebase je odbio zapis (Permission denied). Provjerite pravila Realtime Database; test mode pravila mogu isteći nakon 30 dana.';
+  return 'Greška pri spremanju: '+message;
+}
 async function pull(){
   try{
     const d=await api('/','GET');
@@ -241,7 +249,7 @@ function parseIds(t){
 async function addSamples(){
   const ids=parseIds($('#newids').value);if(!ids.length)return;
   const o={};ids.forEach(id=>{if(!data.samples[id])o[id]={open:true}});
-  try{await api('/samples','PATCH',o)}catch(e){alert('Greška pri spremanju.');return}
+  try{await api('/samples','PATCH',o)}catch(e){alert(writeError(e));return}
   showAdmin();
 }
 async function toggle(id){const open=data.samples[id].open!==false;await api('/samples/'+encodeURIComponent(id)+'/open','PUT',!open);showAdmin()}
@@ -252,7 +260,7 @@ async function delSample(id){
     await api('/ratings/'+encodeURIComponent(id),'DELETE');
     await api('/samples/'+encodeURIComponent(id),'DELETE');
   }catch(e){
-    alert('Uzorak nije obrisan. Provjerite internet i Firebase pravila. '+e.message);
+    alert('Uzorak nije obrisan. '+writeError(e));
     return;
   }
   showAdmin();
