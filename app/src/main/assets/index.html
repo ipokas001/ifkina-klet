@@ -58,6 +58,9 @@ let data={samples:{},ratings:{},settings:{}};
 let screen='home',cur=null,timer=null,adminOk=false,online=true;
 if(isTV)document.body.classList.add('tv');
 
+function objectOrEmpty(value){
+  return value&&typeof value==='object'&&!Array.isArray(value)?value:{};
+}
 async function api(path,method,body){
   const r=await fetch(DB+path+'.json',{method:method||'GET',body:body===undefined?undefined:JSON.stringify(body)});
   if(!r.ok)throw new Error((await r.text())||`HTTP ${r.status}`);return r.json();
@@ -73,7 +76,12 @@ function writeError(e){
 async function pull(){
   try{
     const d=await api('/','GET');
-    data={samples:(d&&d.samples)||{},ratings:(d&&d.ratings)||{},settings:(d&&d.settings)||{}};
+    const root=objectOrEmpty(d);
+    data={
+      samples:objectOrEmpty(root.samples),
+      ratings:objectOrEmpty(root.ratings),
+      settings:objectOrEmpty(root.settings)
+    };
     online=true;
   }catch(e){online=false}
 }
@@ -86,15 +94,20 @@ function startPoll(){clearInterval(timer);timer=setInterval(async()=>{
 },2000)}
 
 function stats(id){
-  const r=Object.values(data.ratings[id]||{});const n=r.length;
+  const r=Object.values(objectOrEmpty(data.ratings[id]))
+    .filter(x=>x&&typeof x==='object');const n=r.length;
   const avg=k=>n?r.reduce((a,x)=>a+(+x[k]||0),0)/n:0;
   return {n,boja:avg('boja'),miris:avg('miris'),okus:avg('okus'),total:avg('total')};
 }
 function sortedSamples(){
-  return Object.keys(data.samples).map(id=>({id,...stats(id)}))
+  return idsSorted().map(id=>({id,...stats(id)}))
     .sort((a,b)=>b.total-a.total||a.id.localeCompare(b.id,'hr',{numeric:true}));
 }
-function idsSorted(){return Object.keys(data.samples).sort((a,b)=>a.localeCompare(b,'hr',{numeric:true}))}
+function idsSorted(){
+  return Object.keys(data.samples)
+    .filter(id=>data.samples[id]&&typeof data.samples[id]==='object')
+    .sort((a,b)=>a.localeCompare(b,'hr',{numeric:true}));
+}
 function goBack(){
   if(isTV)return false;
   if(screen==='home')return false;
@@ -156,7 +169,7 @@ function renderPick(soft){
   $('#app').innerHTML=`<header><div><h1>🍷 Odaberite uzorak</h1><small>${esc(localStorage.getItem('who'))}</small></div><button class="btn sm sec" onclick="home()">Natrag</button></header>
   <div class="wrap">${online?'':'<div class="msg">Nema veze s internetom…</div>'}
   ${ids.length?`<p>Dodirnite broj s boce. Ljubičasto = već ste ocijenili.</p><div class="grid">`+ids.map(id=>{
-    const done=data.ratings[id]&&data.ratings[id][who];const open=data.samples[id]&&data.samples[id].open!==false;
+    const done=objectOrEmpty(data.ratings[id])[who];const open=data.samples[id].open!==false;
     return `<button class="tile ${done?'done':''} ${open?'':'closed'}" onclick="rate('${esc(id)}')">${esc(id)}<small>${!open?'zatvoreno':done?done.total+' b':''}</small></button>`}).join('')+`</div>`
    :'<div class="msg">Admin još nije dodao uzorke.</div>'}
   </div>`;
@@ -220,7 +233,7 @@ async function doLogin(){
     if(String(data.settings.pin)!==p){alert('Pogrešan PIN.');return}
     adminOk=true;await showAdmin();
   }catch(e){
-    alert('Prijava nije uspjela. '+writeError(e));
+    alert((adminOk?'Prijava je uspjela, ali admin prikaz nije uspio. ':'Prijava nije uspjela. ')+writeError(e));
   }
 }
 async function showAdmin(){screen='admin';await pull();renderAdmin();startPoll()}
@@ -232,7 +245,7 @@ function renderAdmin(soft){
    <input id="newids" placeholder="1-12  ili  3,7,15  ili  A1,A2" style="margin-top:8px">
    <button class="btn" onclick="addSamples()">Dodaj</button></div>
   <div class="card"><b>Uzorci</b>
-  ${ids.length?ids.map(id=>{const st=stats(id);const open=data.samples[id].open!==false;return `<div class="srow"><div><b style="font-size:20px">${esc(id)}</b> <span class="badge">${st.n} ocjena</span> <span class="badge">${st.total.toFixed(1)}</span></div>
+  ${ids.length?ids.map(id=>{const st=stats(id);const open=(data.samples[id]||{}).open!==false;return `<div class="srow"><div><b style="font-size:20px">${esc(id)}</b> <span class="badge">${st.n} ocjena</span> <span class="badge">${st.total.toFixed(1)}</span></div>
    <div style="display:flex;gap:6px"><button class="btn sm ${open?'':'sec'}" onclick="toggle('${esc(id)}')">${open?'Otvoreno':'Zatvoreno'}</button><button class="btn sm red" type="button" data-delete-sample="${esc(id)}" aria-label="Obriši uzorak ${esc(id)}">✕</button></div></div>`}).join(''):'<p>Nema uzoraka.</p>'}
   </div>
   <button class="btn" onclick="setAll(false)">Zatvori ocjenjivanje svih</button>
@@ -276,7 +289,9 @@ async function resetAll(){if(!confirm('Obrisati SVE uzorke i ocjene?'))return;if
 function exportCSV(){
   const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
   const rows=[['Uzorak','Ocjenjivač','Boja','Miris','Okus','Ukupno']];
-  idsSorted().forEach(id=>Object.values(data.ratings[id]||{}).forEach(r=>rows.push([id,r.name,r.boja,r.miris,r.okus,r.total])));
+  idsSorted().forEach(id=>Object.values(objectOrEmpty(data.ratings[id]))
+    .filter(r=>r&&typeof r==='object')
+    .forEach(r=>rows.push([id,r.name,r.boja,r.miris,r.okus,r.total])));
   rows.push([]);rows.push(['Uzorak','Prosjek boja','Prosjek miris','Prosjek okus','Prosjek ukupno','Broj ocjena']);
   sortedSamples().forEach(s=>rows.push([s.id,s.boja.toFixed(2),s.miris.toFixed(2),s.okus.toFixed(2),s.total.toFixed(2),s.n]));
   const csv='\ufeff'+rows.map(r=>r.map(q).join(';')).join('\r\n');
